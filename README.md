@@ -1,0 +1,2 @@
+# Estatistica_Exploratoria_UFRPE
+Projeto Estatística Exploratória
