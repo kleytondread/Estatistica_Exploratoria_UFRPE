@@ -1,0 +1,152 @@
+---
+title: "Relatório dos gráficos"
+author: "Kleyton Clementino"
+date: "2023-02-01"
+output: html_document
+---
+
+Veremos a seguir a resoluções das questões do projeto da 1ª VA da disciplina de Estatística Exploratória.
+
+A cidade que me foi dada para gerar os dados foi o município de São Sebastião. Totalizando 30 praias no total.
+
+Essas foram as libraries usadas
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+#libraries
+library('ggplot2')
+library('readxl')
+library('janitor')
+library('tidyverse')
+library(dplyr)
+library(ggforce)
+```
+
+Antes de responder as questões foi necessário importar os dados da planilha fornecida, filtrá-los pela cidade e só então tratar os dados para se obter um sumário deles.
+</br></br>
+<b>1ª Questão.</b></br>
+Eis aqui a forma como importei, filtrei e tratei os dados, gerando no final uma variável sumário. Que é o requisito da questão.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=TRUE}
+# setando a pasta de trabalho.
+setwd("C:/Projeto_Estatistica_Exploratoria")
+
+# importando e transformando a planilha em tabela
+planilhaDados <- read_excel("sp_beaches.xlsx")
+
+tabelaPraias <- as_tibble(planilhaDados)
+
+
+# Questão 1: criando o sumário.
+sumario <- tabelaPraias %>%
+  filter(City == "SÃO SEBASTIÃO") %>%
+  mutate(Enterococcus = as.numeric(Enterococcus)) %>%
+  group_by(Beach) %>%
+  summarise(
+    media = mean(Enterococcus),
+    desvio = sd(Enterococcus),
+    Q1 = quantile(Enterococcus, 0.25),
+    mediana = median(Enterococcus),
+    Q3 = quantile(Enterococcus, 0.75),
+    minimo = min(Enterococcus),
+    maximo = max(Enterococcus)
+  )
+```
+Este é o conteúdo da variável 'sumario'
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+sumario
+```
+
+
+<b>2ª Questão.</b></br>
+nesta questão pedia-se que se fizesse um gráfico de barras com a média de enterococcus por praia.
+
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+ggplot(sumario, aes(x = reorder(Beach, -media), y = media, fill = Beach)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(round(media, 2))),
+            position = position_dodge(width = 0.9), vjust = -0.5, size = 2) +
+  ggtitle("Média de enterococcus por praia em São Sebastião") +
+  xlab("Praia - São Sebastião") + ylab("Média de enterococcus") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5), legend.position = "none")
+```
+
+<i>Obs: Faz-se aqui necessário dizer que a planilha fornecida não explicita de qual unidade estamos falando, por isso a partir de agora tratarei as unidades de enterococcus como 'UFC' (Unidades Formadoras de Colônias).</i><br> 
+
+É possível ver nesse gráfico o nível de contaminação de cada praia, sendo Pontal da Cruz a praia com o maior nivel de contaminação 92.06 UFC. E a praia de Baleia se destacando como a menos contaminada com apenas 12.16 UFC.
+
+<b>3ª Questão.</b></br>
+Questão parecida com a anterior mas agora criando um gráfico de pizza.
+
+Para resolver essa questão existe uma forma mais fácil, mas eu não gostei do resultado (a legenda não saia como eu queria). Eu precisei adcionar algumas colunas ao meu sumário, em termos simples eu transformei os valores de cada praia em uma percentagem do circulo, com essa percentagem eu achei o começo e o fim de cada fatia e armazenei na variável 'graficoPizza'
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+graficoPizza <- sumario %>% 
+  mutate(fim = 2 * pi * cumsum(media)/sum(media),
+         comeco = lag(fim, default = 0),
+         centro = 0.5 * (comeco + fim),
+         hjust = ifelse(centro > pi, 1, 0),
+         vjust = ifelse(centro < pi/2 | centro > 3 * pi/2, 0, 1))
+```
+
+Com essa variável em mãos eu plotei o gráfico normal, mas usei a library 'ggforce' para criar a circunferência, sendo cada trecho do arco uma praia. Isso me permitiu usar o 'geom_text()' e ajustar a legenda para fora da circunferência.<br> 
+<u><i>Esses scripts não foram criados por mim, mas foram modificados e entendidos.</i></u>
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+ggplot(graficoPizza) + 
+  geom_arc_bar(aes(x0 = 0, y0 = 0, r0 = 0, r = 1,
+                   start = comeco, end = fim, fill = Beach)) +
+  geom_text(aes(x = 1.05 * sin(centro), y = 1.05 * cos(centro), 
+                label = paste(Beach, round(media, 2), sep = " - "),
+                hjust = hjust, vjust = vjust),size = 1.7) +
+  coord_fixed() +
+  scale_x_continuous(limits = c(-1.5, 1.5),
+                     name = "", breaks = NULL, labels = NULL) +
+  scale_y_continuous(limits = c(-1.1, 1.1),
+                     name = "", breaks = NULL, labels = NULL) +
+  ggtitle("Porcentagem média de enterococcus por praia em São Sebastião") +
+  theme(legend.position = "none")
+```
+
+O script criado por mim foi este (também fornecido no código fonte), como pode-se ver as legendas não ficam legíveis:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+ggplot(sumario, aes(x = "", y = media, fill = reorder(Beach, media))) +
+  geom_bar(width = 1, stat = "identity", color = "black") +
+  geom_text(aes(label = paste(Beach, round(media, 2), sep = " - ")),
+            position = position_stack(vjust = 0), color = "black", size = 1.7)+
+  coord_polar("y", start = 0) +
+  xlab("") + ylab("Enterococos (média)") +
+  theme(legend.position = "none")
+```
+
+<b>4ª Questão.</b></br>
+Criação do histograma. Acabei optando por 10 barras neste histograma, uma vez que quantidades maiores apresentavem espaços vazios. Este gráfico mostra que a maioria das praias está contaminada com a média de níveis de coliformes entre 4 e 49 UFC.
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+ggplot(sumario, aes(x = media)) +
+  geom_histogram(fill = "blue", color = "black", bins = 10) +
+  scale_x_continuous(breaks = seq(0, max(sumario$media), 3)) +
+  scale_y_continuous(breaks = seq(0, max(sumario$media), 1)) +
+  ggtitle("Distribuição dos enterococcus nas Praias") +
+  xlab("Médias de Enterococcus") +
+  ylab("Frequência de praias")
+```
+
+<b>5ª Questão.</b></br>
+Criação de um Box Plot.no caso deste gráfico, não foi utilizado a variável do sumário. Eu tive que pegar a tabela bruta, filtrar os dados e armazená-los na variável 'boxPlotPraias'. Isso porque para eu montar um box plot, eu preciso dos dados brutos de cada amostra.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+boxPlotPraias <- tabelaPraias %>%
+  filter(City == "SÃO SEBASTIÃO") %>%
+  mutate(Enterococcus = as.numeric(Enterococcus)) %>%
+  group_by(Beach)
+
+ggplot(boxPlotPraias, aes(y = Beach, x = boxPlotPraias$Enterococcus)) +
+  geom_boxplot() +
+  scale_x_continuous(breaks = seq(0, max(boxPlotPraias$Enterococcus), 100)) +
+  ggtitle("Quantidade de enterococcus nas Praias") +
+  xlab("Enterococcus") +
+  ylab("Praias") 
+```
+
+Neste gráfico ele mostra que, para a maioria das praias, o níveis de enterococcus coletados na maioria das amostras estavam abaixo das 200 UFC. Porém existe uma grande quantidade de outliers em todas as praias o que acaba dificultando a vizualização das caixas, esse foi o principal motivo que eu ter escolhido um gráfico em que o nível de enterococcus está no eixo x (um gráfico na horizontal). Dando uma pesquisada, eu ví que existe algumas formas de se normalizar os dados para reduzir ou remover os outliers, mas preferi ser conservador e não mexer com os dados.
